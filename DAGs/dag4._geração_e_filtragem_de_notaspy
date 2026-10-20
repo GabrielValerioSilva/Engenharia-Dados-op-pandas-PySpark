@@ -1,0 +1,66 @@
+from airflow import DAG
+from airflow.providers.standard.operators.python import PythonOperator
+from datetime import datetime
+from airflow.sdk.execution_time.task_runner import RuntimeTaskInstance
+import random
+
+# Função para gerar uma lista de notas aleatórias para os alunos (de 0 a 100)
+def gerar_notas_alunos():
+    notas = [random.randint(0, 100) for _ in range(10)]  # Gerando 10 notas aleatórias
+    return notas
+
+# Função para filtrar aprovações e reprovações
+def filtrar_notas_turma(ti:RuntimeTaskInstance):
+    notas = ti.xcom_pull(task_ids='gerar_notas_alunos', key='return_value')
+    
+    aprovados = [nota for nota in notas if nota >= 70]
+    reprovados = [nota for nota in notas if nota < 70]
+    
+    ti.xcom_push(key='aprovados', value=aprovados)
+    ti.xcom_push(key='reprovados', value=reprovados)
+    return aprovados, reprovados
+
+# Função para gerar o relatório de porcentagem da disciplina
+def gerar_relatorio_disciplina(ti:RuntimeTaskInstance):
+    aprovados = ti.xcom_pull(task_ids='filtrar_notas_turma', key='aprovados')
+    reprovados = ti.xcom_pull(task_ids='filtrar_notas_turma', key='reprovados')
+    
+    total = len(aprovados) + len(reprovados)
+    if total == 0:
+        porcentagem_aprovados = porcentagem_reprovados = 0
+    else:
+        porcentagem_aprovados = (len(aprovados) / total) * 100
+        porcentagem_reprovados = (len(reprovados) / total) * 100
+
+    print(f'Porcentagem de alunos aprovados: {porcentagem_aprovados:.2f}%')
+    print(f'Porcentagem de alunos reprovados: {porcentagem_reprovados:.2f}%')
+
+
+# Definindo o DAG com a estrutura 'with'
+with DAG(
+    dag_id='exemplo_python_operator_notas_universidade',
+    description='DAG simples com PythonOperator (geração e filtragem de notas acadêmicas)',
+    start_date=datetime(2025, 10, 22),
+    catchup=False,
+) as dag:
+    
+    # Etapa 1: Gerar notas aleatórias da turma
+    gerar_notas_task = PythonOperator(
+        task_id='gerar_notas_alunos',
+        python_callable=gerar_notas_alunos,
+    )
+
+    # Etapa 2: Filtrar aprovados e reprovados
+    filtrar_notas_task = PythonOperator(
+        task_id='filtrar_notas_turma',
+        python_callable=filtrar_notas_turma,
+    )
+
+    # Etapa 3: Gerar relatório de porcentagem da disciplina
+    gerar_relatorio_task = PythonOperator(
+        task_id='gerar_relatorio_disciplina',
+        python_callable=gerar_relatorio_disciplina,
+    )
+
+    # Definindo a ordem de execução das tarefas
+    gerar_notas_task >> filtrar_notas_task >> gerar_relatorio_task
