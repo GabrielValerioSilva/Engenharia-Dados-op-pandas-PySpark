@@ -1,0 +1,6 @@
+id_disciplina,nome_disciplina,id_curso,id_professor
+401,Cálculo I,101,301
+402,Física Geral,102,302
+403,Banco de Dados,103,303
+404,Machine Learning,104,304
+405,Circuitos Lógicos,101,305
